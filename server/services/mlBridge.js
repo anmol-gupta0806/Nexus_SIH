@@ -1,0 +1,46 @@
+const axios = require('axios');
+const { ML_SERVICE_URL } = require('../config/env');
+
+class MLBridgeService {
+  constructor() {
+    this.client = axios.create({
+      baseURL: ML_SERVICE_URL,
+      timeout: 120000 // 2 minutes timeout for deep learning inference
+    });
+  }
+
+  async checkHealth() {
+    try {
+      const response = await this.client.get('/api/v1/health');
+      return { online: true, data: response.data };
+    } catch (error) {
+      return { online: false, error: error.message };
+    }
+  }
+
+  async getModels() {
+    const response = await this.client.get('/api/v1/models');
+    return response.data;
+  }
+
+  async runSuperResolution({
+    imagePath,
+    modelType = 'swin_ir',
+    scaleFactor = 4,
+    estimateUncertainty = true,
+    bands = ['B04', 'B03', 'B02']
+  }) {
+    const payload = {
+      image_path: imagePath,
+      model_type: modelType,
+      scale_factor: Number(scaleFactor),
+      estimate_uncertainty: Boolean(estimateUncertainty),
+      bands: Array.isArray(bands) ? bands : ['B04', 'B03', 'B02']
+    };
+
+    const response = await this.client.post('/api/v1/predict', payload);
+    return response.data;
+  }
+}
+
+module.exports = new MLBridgeService();

@@ -37,6 +37,8 @@ class PredictResponse(BaseModel):
     model_used: str
     output_path: str
     preview_url: Optional[str] = None
+    geotiff_url: Optional[str] = None
+    input_preview_url: Optional[str] = None
     uncertainty_map_url: Optional[str] = None
     metrics: Optional[MetricScore] = None
     uncertainty: Optional[UncertaintySummary] = None

@@ -119,6 +119,16 @@ class SatelliteSuperResolutionPipeline:
         sr_filepath = os.path.join(self.output_dir, sr_filename)
         GeoTiffExporter.export_preview_png(sr_result, sr_filepath)
 
+        # Export full GeoTIFF format for GIS integration (QGIS, ArcGIS)
+        tif_filename = f"enhanced_sr_{model_name}_{job_tag}.tif"
+        tif_filepath = os.path.join(self.output_dir, tif_filename)
+        GeoTiffExporter.export_geotiff(sr_result, tif_filepath, uncertainty_band=u_map)
+
+        # Export input preview so comparison slider has the real 10m input
+        input_filename = f"input_raw_{job_tag}.png"
+        input_filepath = os.path.join(self.output_dir, input_filename)
+        GeoTiffExporter.export_preview_png(norm_data, input_filepath)
+
         u_filename = None
         if u_map is not None:
             u_rgb = SpatialUncertaintyEstimator.generate_heatmap_rgb(u_map)
@@ -139,7 +149,10 @@ class SatelliteSuperResolutionPipeline:
             "target_resolution": f"{10.0 / scale_factor:.1f}m",
             "scale_factor": scale_factor,
             "output_path": sr_filepath,
+            "geotiff_path": tif_filepath,
             "preview_url": f"/static/outputs/{sr_filename}",
+            "geotiff_url": f"/static/outputs/{tif_filename}",
+            "input_preview_url": f"/static/outputs/{input_filename}",
             "uncertainty_map_url": f"/static/outputs/{u_filename}" if u_filename else None,
             "metrics": metrics,
             "uncertainty": u_stats,

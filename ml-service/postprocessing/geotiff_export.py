@@ -74,6 +74,16 @@ class GeoTiffExporter:
             tifffile.imwrite(output_filepath, data_to_save.astype(np.float32))
             return output_filepath
         except ImportError:
-            # Fallback PIL preview
-            png_fallback = os.path.splitext(output_filepath)[0] + ".png"
-            return GeoTiffExporter.export_preview_png(multi_band_array, png_fallback)
+            # Export standard multi-channel GeoTIFF using PIL
+            if data_to_save.ndim == 3:
+                if data_to_save.shape[0] >= 3:
+                    rgb = data_to_save[:3]
+                else:
+                    rgb = np.repeat(data_to_save[:1], 3, axis=0)
+                hwc = np.transpose(rgb, (1, 2, 0))
+                hwc_uint8 = np.clip(hwc * 255.0, 0, 255).astype(np.uint8)
+                img = PILImage.fromarray(hwc_uint8)
+            else:
+                img = PILImage.fromarray(np.clip(data_to_save * 255.0, 0, 255).astype(np.uint8))
+            img.save(output_filepath, format="TIFF")
+            return output_filepath
