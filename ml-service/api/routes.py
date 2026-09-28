@@ -1,7 +1,6 @@
 import time
 import os
-import numpy as np
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
 from .schemas import (
     PredictRequest,
     PredictResponse,
@@ -10,8 +9,10 @@ from .schemas import (
     UncertaintySummary,
     ModelArchitecture,
 )
+from pipeline import SatelliteSuperResolutionPipeline
 
 router = APIRouter()
+pipeline = SatelliteSuperResolutionPipeline()
 
 @router.get("/health", response_model=HealthResponse)
 async def health_check():
@@ -68,50 +69,43 @@ async def list_models():
 
 @router.post("/predict", response_model=PredictResponse)
 async def predict_super_resolution(req: PredictRequest):
-    start_time = time.time()
-    
-    # In production/full mode, models perform inference on tensor tiles.
-    # Here we provide a robust baseline handler that can run in both simulated
-    # and deep-learning inference modes.
-    target_res = f"{10.0 / req.scale_factor:.1f}m"
-    
-    # Simulated metrics adhering to scientific benchmarks for Sentinel-2 4x SR
-    metrics = MetricScore(
-        psnr=32.45 if req.model_type == ModelArchitecture.SWIN_IR else (31.80 if req.model_type == ModelArchitecture.DIFFUSION else 30.92),
-        ssim=0.892 if req.model_type == ModelArchitecture.SWIN_IR else (0.884 if req.model_type == ModelArchitecture.DIFFUSION else 0.865),
-        sam=2.14, # Spectral Angle Mapper in degrees (<3 is considered excellent preservation)
-        ergas=1.85,
-        lpips=0.112
-    )
-
-    uncertainty = None
-    if req.estimate_uncertainty:
-        uncertainty = UncertaintySummary(
-            mean_uncertainty=0.048,
-            max_uncertainty=0.231,
-            high_uncertainty_coverage_pct=3.8, # only 3.8% of pixels have elevated uncertainty
-            uncertainty_map_path="outputs/uncertainty_map_sample.png"
+    try:
+        res = pipeline.run(
+            image_path=req.image_path,
+            model_name=req.model_type.value,
+            scale_factor=req.scale_factor,
+            estimate_uncertainty=req.estimate_uncertainty
         )
 
-    exec_time = round(time.time() - start_time + 0.65, 3)
+        metrics = MetricScore(
+            psnr=res["metrics"].get("psnr"),
+            ssim=res["metrics"].get("ssim"),
+            sam=res["metrics"].get("sam_deg"),
+            ergas=res["metrics"].get("ergas")
+        )
 
-    return PredictResponse(
-        status="success",
-        job_id="job_" + str(int(time.time())),
-        original_resolution="10.0m",
-        target_resolution=target_res,
-        model_used=req.model_type.value,
-        output_path=req.output_filename or f"outputs/enhanced_sr_{req.model_type.value}.tif",
-        preview_url=f"/static/outputs/preview_{req.model_type.value}.png",
-        uncertainty_map_url="/static/outputs/uncertainty_map_sample.png" if req.estimate_uncertainty else None,
-        metrics=metrics,
-        uncertainty=uncertainty,
-        execution_time_seconds=exec_time,
-        metadata={
-            "scale_factor": req.scale_factor,
-            "bands_processed": req.bands,
-            "crs": "EPSG:32643",
-            "georeferenced": req.preserve_georeference,
-            "methodology": "Generative Super-Resolution with Uncertainty Quantification"
-        }
-    )
+        uncertainty = None
+        if res.get("uncertainty"):
+            uncertainty = UncertaintySummary(
+                mean_uncertainty=res["uncertainty"]["mean_uncertainty"],
+                max_uncertainty=res["uncertainty"]["max_uncertainty"],
+                high_uncertainty_coverage_pct=res["uncertainty"]["high_uncertainty_coverage_pct"],
+                uncertainty_map_path=res.get("uncertainty_map_url")
+            )
+
+        return PredictResponse(
+            status="success",
+            job_id="job_" + str(int(time.time())),
+            original_resolution=res["original_resolution"],
+            target_resolution=res["target_resolution"],
+            model_used=res["model_used"],
+            output_path=res["output_path"],
+            preview_url=res["preview_url"],
+            uncertainty_map_url=res.get("uncertainty_map_url"),
+            metrics=metrics,
+            uncertainty=uncertainty,
+            execution_time_seconds=res["execution_time_seconds"],
+            metadata=res["metadata"]
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Pipeline inference failed: {str(e)}")
