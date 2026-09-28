@@ -128,32 +128,19 @@ export default function ComparisonPage() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'linear-gradient(135deg, #0e1e2d 0%, #15312a 50%, #18233c 100%)',
-          backgroundImage: `
-            radial-gradient(ellipse at 40% 50%, rgba(16, 185, 129, 0.45) 0%, transparent 60%),
-            radial-gradient(ellipse at 75% 30%, rgba(6, 182, 212, 0.35) 0%, transparent 50%),
-            linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px),
-            linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px)
-          `,
-          backgroundSize: '100% 100%, 100% 100%, 16px 16px, 16px 16px'
+          backgroundColor: '#070a12',
+          overflow: 'hidden'
         }}>
-          {/* Simulated enhanced roads and boundaries */}
-          <svg width="100%" height="100%" style={{ position: 'absolute', top: 0, left: 0 }}>
-            {/* Fine agricultural field boundaries */}
-            <rect x="15%" y="20%" width="22%" height="32%" fill="none" stroke="#34d399" strokeWidth="1.5" strokeDasharray="3 3" opacity="0.8" />
-            <rect x="40%" y="18%" width="28%" height="24%" fill="none" stroke="#10b981" strokeWidth="1.5" opacity="0.9" />
-            <rect x="42%" y="45%" width="24%" height="30%" fill="none" stroke="#059669" strokeWidth="1.5" opacity="0.85" />
-            
-            {/* Sharp secondary road network (sub-4m feature) */}
-            <path d="M 50 150 Q 300 220 550 180 T 950 320" fill="none" stroke="#f1f5f9" strokeWidth="3" opacity="0.95" />
-            <path d="M 320 200 L 480 550" fill="none" stroke="#e2e8f0" strokeWidth="2.5" opacity="0.9" />
-            <path d="M 550 180 L 720 480" fill="none" stroke="#cbd5e1" strokeWidth="2" opacity="0.85" />
-
-            {/* Reconstructed urban building footprints */}
-            <rect x="48%" y="25%" width="24" height="24" fill="#38bdf8" opacity="0.8" rx="2" />
-            <rect x="52%" y="27%" width="30" height="20" fill="#38bdf8" opacity="0.8" rx="2" />
-            <rect x="50%" y="33%" width="20" height="28" fill="#38bdf8" opacity="0.8" rx="2" />
-          </svg>
+          <img 
+            src={showUncertainty ? "/sample_uncertainty.png" : "/sample_enhanced_2_5m.png"} 
+            alt="AI Super-Resolved 2.5m"
+            onError={(e) => { e.target.style.display = 'none'; }}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover'
+            }}
+          />
         </div>
 
         {/* Left side: 10m Low Resolution Input View (Clipped via slider) */}
@@ -176,16 +163,23 @@ export default function ComparisonPage() {
             transform: `scale(${zoomLevel})`,
             transformOrigin: 'center center',
             transition: 'transform 0.1s ease-out',
-            background: 'linear-gradient(135deg, #0e1e2d 0%, #15312a 50%, #18233c 100%)',
-            filter: 'blur(5px) contrast(85%)', // Simulates 10m medium-resolution optical blur
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            backgroundColor: '#070a12',
+            overflow: 'hidden'
           }}>
-            <svg width="100%" height="100%" style={{ position: 'absolute', top: 0, left: 0 }}>
-              <path d="M 50 150 Q 300 220 550 180 T 950 320" fill="none" stroke="#f1f5f9" strokeWidth="12" opacity="0.5" />
-              <path d="M 320 200 L 480 550" fill="none" stroke="#e2e8f0" strokeWidth="10" opacity="0.5" />
-            </svg>
+            <img 
+              src="/sample_input_10m.png" 
+              alt="10m Sentinel-2 Input"
+              onError={(e) => { e.target.style.display = 'none'; }}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                filter: 'contrast(92%)'
+              }}
+            />
           </div>
         </div>
 
