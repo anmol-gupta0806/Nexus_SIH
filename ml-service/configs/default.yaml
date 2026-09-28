@@ -1,0 +1,43 @@
+service:
+  name: "Nexus Satellite Super-Resolution ML Engine"
+  version: "1.0.0"
+  port: 8000
+  host: "127.0.0.1"
+
+inference:
+  default_model: "srgan" # options: srgan, diffusion, swin_ir
+  scale_factor: 4        # 10m -> 2.5m (<4m requirement)
+  tile_size: 256
+  tile_overlap: 32
+  batch_size: 4
+  device: "cuda"        # cuda / cpu fallback
+
+models:
+  srgan:
+    weights_path: "checkpoints/srgan_sentinel2_x4.pth"
+    num_residual_blocks: 16
+    in_channels: 4       # B02 (Blue), B03 (Green), B04 (Red), B08 (NIR)
+    out_channels: 4
+  diffusion:
+    weights_path: "checkpoints/diffusion_sr_x4.pt"
+    timesteps: 50
+    beta_schedule: "cosine"
+  swin_ir:
+    weights_path: "checkpoints/swinir_satellite_x4.pth"
+    window_size: 8
+    img_range: 1.0
+
+preprocessing:
+  normalize_method: "minmax" # or "percentile" (2% - 98%)
+  bands:
+    rgb: ["B04", "B03", "B02"]
+    rgb_nir: ["B04", "B03", "B02", "B08"]
+
+uncertainty:
+  method: "mc_dropout" # mc_dropout or ensemble or residual_variance
+  num_samples: 5
+  export_heatmap: true
+
+paths:
+  input_dir: "../data/raw/sentinel2"
+  output_dir: "../data/outputs"
