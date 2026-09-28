@@ -8,6 +8,8 @@ import os
 import time
 import numpy as np
 from PIL import Image as PILImage
+PILImage.MAX_IMAGE_PIXELS = None # Enable large satellite raster processing
+
 from typing import Dict, Any, Optional, Tuple
 
 from preprocessing.normalize import normalize_sentinel2, denormalize_to_uint8
@@ -22,63 +24,54 @@ from models.srgan.generator import SentinelSRGAN
 from models.transformer.swin_ir import SwinIRRemoteSensing
 
 class SatelliteSuperResolutionPipeline:
-    def __init__(self, output_dir: str = "../data/outputs"):
+    def __init__(self, output_dir: Optional[str] = None):
+        if output_dir is None:
+            output_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/outputs"))
         self.output_dir = os.path.abspath(output_dir)
         os.makedirs(self.output_dir, exist_ok=True)
 
-    def load_raster(self, image_path: str) -> np.ndarray:
-        """Loads raster or image into numpy array of shape (C, H, W)."""
+    def load_raster(self, image_path: str, max_extent: int = 1024) -> np.ndarray:
+        """
+        Loads raster or image into numpy array of shape (C, H, W).
+        If raster is full-granule (e.g. 10980x10980), extracts a representative center AOI.
+        """
         if not os.path.exists(image_path):
-            # Generate a realistic synthetic Sentinel-2 10m agricultural & urban scene for testing
             return self._generate_synthetic_sentinel2_scene()
 
         try:
-            from PIL import Image
-            img = Image.open(image_path)
-            arr = np.array(img).astype(np.float32)
-            if arr.ndim == 2:
-                # Grayscale
-                return np.expand_dims(arr, axis=0)
-            elif arr.ndim == 3:
-                # (H, W, C) -> (C, H, W)
-                return np.transpose(arr[:, :, :4], (2, 0, 1))
+            with PILImage.open(image_path) as img:
+                w, h = img.size
+                if w > max_extent or h > max_extent:
+                    # Extract representative center region of interest
+                    left = (w - max_extent) // 2
+                    top = (h - max_extent) // 2
+                    img = img.crop((left, top, left + max_extent, top + max_extent))
+                
+                arr = np.array(img).astype(np.float32)
+                if arr.ndim == 2:
+                    return np.expand_dims(arr, axis=0)
+                elif arr.ndim == 3:
+                    # (H, W, C) -> (C, H, W)
+                    return np.transpose(arr[:, :, :4], (2, 0, 1))
         except Exception as e:
             print(f"[Loader Warning] {e}. Falling back to synthetic scene.")
             return self._generate_synthetic_sentinel2_scene()
 
     def _generate_synthetic_sentinel2_scene(self) -> np.ndarray:
-        """
-        Creates a 4-band synthetic 10m Sentinel-2 scene (256x256):
-        Band 0: Blue (B02)
-        Band 1: Green (B03)
-        Band 2: Red (B04)
-        Band 3: NIR (B08)
-        Contains simulated agricultural fields, roads, and urban buildings.
-        """
+        """Creates a 4-band synthetic 10m Sentinel-2 scene (256x256)."""
         h, w = 256, 256
         scene = np.zeros((4, h, w), dtype=np.float32)
-
-        # Base soil & vegetation reflectance
         scene[0] = 0.15 # Blue
         scene[1] = 0.25 # Green
         scene[2] = 0.20 # Red
-        scene[3] = 0.45 # High NIR for vegetation
-
-        # Add agricultural field polygons
-        scene[1, 30:110, 20:100] = 0.40 # High green
-        scene[3, 30:110, 20:100] = 0.75 # Dense vegetation NIR
-        scene[2, 30:110, 20:100] = 0.12 # Low red absorption
-
-        # Add road (narrow feature)
-        scene[:, 120:124, :] = 0.55 # Paved surface across all bands
-
-        # Add urban building cluster
+        scene[3] = 0.45 # NIR
+        scene[1, 30:110, 20:100] = 0.40
+        scene[3, 30:110, 20:100] = 0.75
+        scene[2, 30:110, 20:100] = 0.12
+        scene[:, 120:124, :] = 0.55
         scene[:, 150:190, 140:180] = 0.65
-
-        # Add natural satellite noise
         noise = np.random.normal(0, 0.02, scene.shape).astype(np.float32)
-        scene = np.clip(scene + noise, 0.0, 1.0)
-        return scene
+        return np.clip(scene + noise, 0.0, 1.0)
 
     def run(
         self,
@@ -86,8 +79,8 @@ class SatelliteSuperResolutionPipeline:
         model_name: str = "swin_ir",
         scale_factor: int = 4,
         estimate_uncertainty: bool = True,
-        tile_size: int = 128,
-        overlap: int = 24
+        tile_size: int = 256,
+        overlap: int = 32
     ) -> Dict[str, Any]:
         start_time = time.time()
 
@@ -156,6 +149,8 @@ class SatelliteSuperResolutionPipeline:
                 "portal_url": "https://browser.dataspace.copernicus.eu",
                 "bands_processed": ["B02", "B03", "B04", "B08"] if channels >= 4 else ["B04", "B03", "B02"],
                 "target_gsd_meters": 10.0 / scale_factor,
+                "input_dimensions": f"{orig_w}x{orig_h}",
+                "output_dimensions": f"{orig_w * scale_factor}x{orig_h * scale_factor}",
                 "tile_dimensions": {"tile_size": tile_size, "overlap": overlap}
             }
         }
