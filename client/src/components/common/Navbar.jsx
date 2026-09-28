@@ -7,7 +7,8 @@ import {
   SlidersHorizontal, 
   BarChart3, 
   Activity, 
-  ShieldCheck 
+  ShieldCheck,
+  History
 } from 'lucide-react';
 import api from '../../services/api';
 
@@ -26,7 +27,8 @@ export default function Navbar() {
     { name: 'Dashboard', path: '/', icon: BarChart3 },
     { name: 'Enhance & Upload', path: '/upload', icon: UploadCloud },
     { name: 'Resolution Comparator', path: '/comparison', icon: SlidersHorizontal },
-    { name: 'Validation & Uncertainty', path: '/validation', icon: ShieldCheck }
+    { name: 'Validation & Rigor', path: '/validation', icon: ShieldCheck },
+    { name: 'Catalog & History', path: '/history', icon: History }
   ];
 
   return (

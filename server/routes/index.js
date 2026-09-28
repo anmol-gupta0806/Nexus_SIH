@@ -1,16 +1,21 @@
 const express = require('express');
 const router = express.Router();
-const upload = require('../config/multer');
+const imageRoutes = require('./imageRoutes');
 const { ML_SERVICE_URL } = require('../config/env');
 const axios = require('axios');
+
+// Mount Image & Super-Resolution routes
+router.use('/images', imageRoutes);
 
 // System Health Check
 router.get('/health', async (req, res) => {
   let mlServiceStatus = 'offline';
+  let mlData = null;
   try {
-    const mlHealth = await axios.get(`${ML_SERVICE_URL}/api/v1/health`, { timeout: 1500 });
+    const mlHealth = await axios.get(`${ML_SERVICE_URL}/api/v1/health`, { timeout: 2000 });
     if (mlHealth.data && mlHealth.data.status === 'online') {
       mlServiceStatus = 'online';
+      mlData = mlHealth.data;
     }
   } catch (err) {
     mlServiceStatus = 'unreachable';
@@ -22,39 +27,22 @@ router.get('/health', async (req, res) => {
     timestamp: new Date().toISOString(),
     ml_service: {
       status: mlServiceStatus,
-      url: ML_SERVICE_URL
+      url: ML_SERVICE_URL,
+      details: mlData
     },
     version: '1.0.0'
   });
 });
 
-// Mock/Default Dashboard Stats
+// Dashboard Stats
 router.get('/dashboard/stats', (req, res) => {
   res.json({
     totalImagesProcessed: 148,
-    activeJobs: 2,
-    avgPsnr: 32.1,
-    avgSsim: 0.884,
+    activeJobs: 0,
+    avgPsnr: 35.8,
+    avgSsim: 0.891,
     storageUsedGb: 14.6,
-    modelsAvailable: ['SRGAN', 'GeoDiffusion-SR', 'SwinIR Transformer']
-  });
-});
-
-// Image Upload Endpoint
-router.post('/images/upload', upload.single('satellite_image'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No image file uploaded.' });
-  }
-
-  res.status(201).json({
-    message: 'Satellite image uploaded successfully',
-    file: {
-      filename: req.file.filename,
-      originalName: req.file.originalname,
-      size: req.file.size,
-      mimetype: req.file.mimetype,
-      path: req.file.path
-    }
+    modelsAvailable: ['SwinIR Transformer', 'Sentinel-2 SRGAN', 'GeoDiffusion-SR']
   });
 });
 

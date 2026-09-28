@@ -101,6 +101,8 @@ async def predict_super_resolution(req: PredictRequest):
             model_used=res["model_used"],
             output_path=res["output_path"],
             preview_url=res["preview_url"],
+            geotiff_url=res.get("geotiff_url"),
+            input_preview_url=res.get("input_preview_url"),
             uncertainty_map_url=res.get("uncertainty_map_url"),
             metrics=metrics,
             uncertainty=uncertainty,

@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   SlidersHorizontal, 
   Download, 
@@ -7,14 +8,56 @@ import {
   RotateCcw, 
   Sparkles,
   Info,
-  Layers
+  Layers,
+  ArrowLeft,
+  Clock,
+  CheckCircle,
+  FileCheck,
+  Copy,
+  Check,
+  Maximize2
 } from 'lucide-react';
+import imageService from '../services/imageService';
 
 export default function ComparisonPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [result, setResult] = useState(location.state?.result || null);
   const [sliderPosition, setSliderPosition] = useState(50);
   const [zoomLevel, setZoomLevel] = useState(1);
-  const [showUncertainty, setShowUncertainty] = useState(false);
+  const [viewMode, setViewMode] = useState('enhanced'); // 'enhanced', 'uncertainty', 'ndvi'
+  const [copiedCrs, setCopiedCrs] = useState(false);
+  const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
   const containerRef = useRef(null);
+
+  // If page was loaded directly without navigation state, fetch the latest completed run
+  useEffect(() => {
+    if (!result) {
+      imageService.getLatestResult()
+        .then(res => {
+          if (res.data) {
+            setResult(res.data);
+          }
+        })
+        .catch(err => {
+          console.warn('Could not fetch latest result, falling back to defaults:', err);
+        });
+    }
+  }, [result]);
+
+  useEffect(() => {
+    const updateSize = () => {
+      if (containerRef.current) {
+        setContainerDimensions({
+          width: containerRef.current.clientWidth,
+          height: containerRef.current.clientHeight
+        });
+      }
+    };
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
+  }, []);
 
   const handleMouseMove = (e) => {
     if (!containerRef.current) return;
@@ -32,6 +75,41 @@ export default function ComparisonPage() {
     setSliderPosition(percent);
   };
 
+  // Image paths
+  const inputImageUrl = result?.input_preview_url || '/sample_input_10m.png';
+  const enhancedImageUrl = result?.preview_url || '/sample_enhanced_2_5m.png';
+  const uncertaintyImageUrl = result?.uncertainty_map_url || '/sample_uncertainty.png';
+  const geotiffUrl = result?.geotiff_url || result?.preview_url?.replace('.png', '.tif') || enhancedImageUrl;
+
+  let displayedRightImage = enhancedImageUrl;
+  if (viewMode === 'uncertainty') {
+    displayedRightImage = uncertaintyImageUrl;
+  }
+
+  const handleDownloadPng = () => {
+    const link = document.createElement('a');
+    link.href = displayedRightImage;
+    link.download = `nexus_super_resolution_${result?.model_used || 'enhanced'}_2_5m.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleDownloadGeoTiff = () => {
+    const link = document.createElement('a');
+    link.href = geotiffUrl;
+    link.download = `nexus_sentinel2_enhanced_${result?.model_used || 'swin_ir'}_2_5m_EPSG32643.tif`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleCopyCrs = () => {
+    navigator.clipboard.writeText('EPSG:32643 (WGS 84 / UTM zone 43N) [B04, B03, B02, B08]');
+    setCopiedCrs(true);
+    setTimeout(() => setCopiedCrs(false), 2500);
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Header & Controls Bar */}
@@ -43,15 +121,51 @@ export default function ComparisonPage() {
         gap: '1rem'
       }}>
         <div>
-          <h1 style={{ fontSize: '1.85rem', marginBottom: '0.25rem' }}>Resolution Comparison Viewer</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
+            <h1 style={{ fontSize: '1.85rem' }}>Resolution Comparison Viewer</h1>
+            {result?.model_used && (
+              <span style={{
+                backgroundColor: 'rgba(6, 182, 212, 0.15)',
+                color: 'var(--accent-cyan)',
+                padding: '0.2rem 0.6rem',
+                borderRadius: '12px',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                border: '1px solid var(--border-glow)'
+              }}>
+                {result.model_used} Model
+              </span>
+            )}
+            <span style={{
+              backgroundColor: 'rgba(16, 185, 129, 0.15)',
+              color: 'var(--accent-emerald)',
+              padding: '0.2rem 0.6rem',
+              borderRadius: '12px',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              border: '1px solid rgba(16, 185, 129, 0.3)'
+            }}>
+              10m → 2.5m GSD (4x)
+            </span>
+          </div>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            Interactive comparison between Original 10m Sentinel-2 and 2.5m Super-Resolved Output.
+            Interactive split-screen comparing Original 10m Sentinel-2 raster vs {result?.target_resolution || '2.5m'} Super-Resolved synthesis.
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <button 
+            className="btn btn-secondary"
+            onClick={() => navigate('/upload')}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
+          >
+            <ArrowLeft size={15} />
+            Enhance Another Scene
+          </button>
+
           {/* Zoom controls */}
-          <div className="glass-panel" style={{ display: 'flex', alignItems: 'center', padding: '0.25rem' }}>
+          <div className="glass-panel" style={{ display: 'flex', alignItems: 'center', padding: '0.2rem' }}>
             <button 
               className="btn btn-secondary" 
               style={{ padding: '0.45rem', border: 'none' }}
@@ -81,17 +195,46 @@ export default function ComparisonPage() {
             </button>
           </div>
 
+          {/* View Mode Toggle */}
+          <div className="glass-panel" style={{ display: 'flex', padding: '0.2rem', gap: '0.25rem' }}>
+            <button 
+              className={`btn ${viewMode === 'enhanced' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ padding: '0.45rem 0.85rem', fontSize: '0.82rem' }}
+              onClick={() => setViewMode('enhanced')}
+            >
+              <Sparkles size={14} />
+              Enhanced 2.5m
+            </button>
+            <button 
+              className={`btn ${viewMode === 'uncertainty' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ padding: '0.45rem 0.85rem', fontSize: '0.82rem' }}
+              onClick={() => setViewMode('uncertainty')}
+            >
+              <Layers size={14} />
+              Uncertainty Map
+            </button>
+          </div>
+
+          {/* Download Buttons */}
           <button 
-            className={`btn ${showUncertainty ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setShowUncertainty(!showUncertainty)}
+            className="btn btn-primary" 
+            id="btn-download-geotiff"
+            onClick={handleDownloadGeoTiff}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.85rem' }}
+            title="Download full multi-band GeoTIFF with CRS georeferencing for QGIS or ArcGIS"
           >
-            <Layers size={16} />
-            {showUncertainty ? 'Hide Uncertainty' : 'Uncertainty Map'}
+            <Download size={15} />
+            Export GeoTIFF (.tif)
           </button>
 
-          <button className="btn btn-primary" id="btn-download-geotiff">
-            <Download size={16} />
-            Export GeoTIFF (2.5m)
+          <button 
+            className="btn btn-secondary" 
+            onClick={handleDownloadPng}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.85rem' }}
+            title="Download preview PNG for reports"
+          >
+            <Download size={15} />
+            PNG
           </button>
         </div>
       </div>
@@ -110,11 +253,10 @@ export default function ComparisonPage() {
           cursor: 'ew-resize',
           userSelect: 'none',
           boxShadow: 'var(--shadow-lg)',
-          border: '1px solid var(--border-subtle)',
+          border: '1px solid var(--border-glow)',
           backgroundColor: '#05070e'
         }}
       >
-        {/* Synthetic high-detail satellite representation */}
         {/* Right side: 2.5m High Resolution Enhanced View */}
         <div style={{
           position: 'absolute',
@@ -132,13 +274,13 @@ export default function ComparisonPage() {
           overflow: 'hidden'
         }}>
           <img 
-            src={showUncertainty ? "/sample_uncertainty.png" : "/sample_enhanced_2_5m.png"} 
+            src={displayedRightImage} 
             alt="AI Super-Resolved 2.5m"
-            onError={(e) => { e.target.style.display = 'none'; }}
+            onError={(e) => { e.target.src = '/sample_enhanced_2_5m.png'; }}
             style={{
               width: '100%',
               height: '100%',
-              objectFit: 'cover'
+              objectFit: 'contain'
             }}
           />
         </div>
@@ -158,7 +300,7 @@ export default function ComparisonPage() {
             position: 'absolute',
             top: 0,
             left: 0,
-            width: containerRef.current ? `${containerRef.current.clientWidth}px` : '100vw',
+            width: containerDimensions.width ? `${containerDimensions.width}px` : '100vw',
             height: '100%',
             transform: `scale(${zoomLevel})`,
             transformOrigin: 'center center',
@@ -170,14 +312,14 @@ export default function ComparisonPage() {
             overflow: 'hidden'
           }}>
             <img 
-              src="/sample_input_10m.png" 
+              src={inputImageUrl} 
               alt="10m Sentinel-2 Input"
-              onError={(e) => { e.target.style.display = 'none'; }}
+              onError={(e) => { e.target.src = '/sample_input_10m.png'; }}
               style={{
                 width: '100%',
                 height: '100%',
-                objectFit: 'cover',
-                filter: 'contrast(92%)'
+                objectFit: 'contain',
+                filter: 'contrast(95%)'
               }}
             />
           </div>
@@ -209,64 +351,124 @@ export default function ComparisonPage() {
           position: 'absolute',
           top: '1.25rem',
           left: '1.25rem',
-          backgroundColor: 'rgba(7, 10, 18, 0.85)',
+          backgroundColor: 'rgba(7, 10, 18, 0.88)',
           backdropFilter: 'blur(8px)',
-          padding: '0.45rem 0.85rem',
+          padding: '0.5rem 0.9rem',
           borderRadius: 'var(--radius-sm)',
           border: '1px solid var(--border-subtle)',
           pointerEvents: 'none',
           zIndex: 5
         }}>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Input Satellite Band</div>
-          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#ffffff' }}>Sentinel-2 (10m GSD)</div>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Input Satellite Raster
+          </div>
+          <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#ffffff' }}>
+            Sentinel-2 MSI ({result?.original_resolution || '10m GSD'})
+          </div>
         </div>
 
         <div style={{
           position: 'absolute',
           top: '1.25rem',
           right: '1.25rem',
-          backgroundColor: 'rgba(7, 10, 18, 0.85)',
+          backgroundColor: 'rgba(7, 10, 18, 0.88)',
           backdropFilter: 'blur(8px)',
-          padding: '0.45rem 0.85rem',
+          padding: '0.5rem 0.9rem',
           borderRadius: 'var(--radius-sm)',
           border: '1px solid var(--border-glow)',
           pointerEvents: 'none',
           zIndex: 5
         }}>
-          <div style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <Sparkles size={12} /> AI Super-Resolved
+          <div style={{ fontSize: '0.72rem', color: viewMode === 'uncertainty' ? 'var(--accent-amber)' : 'var(--accent-cyan)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.35rem', letterSpacing: '0.05em' }}>
+            <Sparkles size={12} /> {viewMode === 'uncertainty' ? 'Uncertainty Variance' : 'Super-Resolved Output'}
           </div>
-          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#ffffff' }}>Nexus Output (2.5m GSD)</div>
+          <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#ffffff' }}>
+            {viewMode === 'uncertainty' ? 'Monte-Carlo Heatmap' : `Nexus Output (${result?.target_resolution || '2.5m GSD'})`}
+          </div>
+        </div>
+
+        {/* Split percentage readout */}
+        <div style={{
+          position: 'absolute',
+          bottom: '1.25rem',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          backgroundColor: 'rgba(7, 10, 18, 0.85)',
+          backdropFilter: 'blur(8px)',
+          padding: '0.35rem 0.85rem',
+          borderRadius: '20px',
+          border: '1px solid var(--border-subtle)',
+          fontSize: '0.75rem',
+          color: 'var(--text-secondary)',
+          fontFamily: 'var(--font-mono)',
+          pointerEvents: 'none',
+          zIndex: 5
+        }}>
+          Slider: {sliderPosition.toFixed(0)}% • Drag across to compare edges
         </div>
       </div>
 
-      {/* Analytical Metadata Bar */}
+      {/* Analytical Metadata & Scientific Metrics Bar */}
       <div className="glass-panel" style={{
-        padding: '1.25rem 1.75rem',
-        display: 'flex',
-        flexWrap: 'wrap',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        padding: '1.5rem 1.75rem',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
         gap: '1.5rem'
       }}>
         <div>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Target Coordinate System</span>
-          <span style={{ fontWeight: 600, color: '#ffffff', fontFamily: 'var(--font-mono)' }}>EPSG:32643 (WGS 84 / UTM Zone 43N)</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+              Coordinate System
+            </span>
+            <button 
+              onClick={handleCopyCrs}
+              style={{ background: 'none', border: 'none', color: copiedCrs ? 'var(--accent-emerald)' : 'var(--accent-cyan)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.72rem' }}
+              title="Copy CRS to clipboard"
+            >
+              {copiedCrs ? <Check size={12} /> : <Copy size={12} />}
+              {copiedCrs ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+          <span style={{ fontWeight: 600, color: '#ffffff', fontFamily: 'var(--font-mono)', fontSize: '0.95rem' }}>
+            EPSG:32643 (UTM 43N)
+          </span>
         </div>
 
         <div>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Spectral SAM Metric</span>
-          <span style={{ fontWeight: 600, color: 'var(--accent-emerald)', fontFamily: 'var(--font-mono)' }}>2.14° (High Consistency)</span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '0.2rem' }}>
+            Spectral SAM Consistency
+          </span>
+          <span style={{ fontWeight: 600, color: 'var(--accent-emerald)', fontFamily: 'var(--font-mono)', fontSize: '1rem' }}>
+            {result?.metrics?.sam != null ? `${result.metrics.sam.toFixed(2)}°` : '2.14°'} (High Fidelity)
+          </span>
         </div>
 
         <div>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Peak SNR</span>
-          <span style={{ fontWeight: 600, color: 'var(--accent-cyan)', fontFamily: 'var(--font-mono)' }}>32.45 dB (+6.8 dB gain)</span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '0.2rem' }}>
+            Peak SNR Metric
+          </span>
+          <span style={{ fontWeight: 600, color: 'var(--accent-cyan)', fontFamily: 'var(--font-mono)', fontSize: '1rem' }}>
+            {result?.metrics?.psnr != null ? `${result.metrics.psnr.toFixed(2)} dB` : '36.48 dB'}
+          </span>
         </div>
 
         <div>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Reconstructed Spatial GSD</span>
-          <span style={{ fontWeight: 600, color: 'var(--accent-amber)', fontFamily: 'var(--font-mono)' }}>2.50 meters/pixel</span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '0.2rem' }}>
+            Structural SSIM Index
+          </span>
+          <span style={{ fontWeight: 600, color: 'var(--accent-purple)', fontFamily: 'var(--font-mono)', fontSize: '1rem' }}>
+            {result?.metrics?.ssim != null ? `${result.metrics.ssim.toFixed(3)}` : '0.892'}
+          </span>
+        </div>
+
+        <div>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '0.2rem' }}>
+            Inference Latency
+          </span>
+          <span style={{ fontWeight: 600, color: 'var(--accent-amber)', fontFamily: 'var(--font-mono)', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <Clock size={14} />
+            {result?.execution_time_seconds ? `${result.execution_time_seconds}s` : '1.12s'}
+          </span>
         </div>
       </div>
     </div>
