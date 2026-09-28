@@ -1,0 +1,31 @@
+{
+  "name": "nexus-satellite-super-resolution",
+  "version": "1.0.0",
+  "description": "Satellite Imagery Super-Resolution Framework (10m Sentinel-2 to <4m High-Resolution) using MERN and Generative AI",
+  "main": "server/server.js",
+  "scripts": {
+    "install:all": "npm install && cd server && npm install && cd ../client && npm install",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "dev:ml": "cd ml-service && uvicorn api.app:app --host 127.0.0.1 --port 8000 --reload",
+    "dev": "concurrently -n \"SERVER,CLIENT,ML\" -c \"blue,magenta,green\" \"npm run dev:server\" \"npm run dev:client\" \"npm run dev:ml\"",
+    "start:server": "cd server && npm start",
+    "build:client": "cd client && npm run build"
+  },
+  "keywords": [
+    "satellite-imagery",
+    "super-resolution",
+    "sentinel-2",
+    "generative-ai",
+    "diffusion",
+    "srgan",
+    "mern",
+    "fastapi",
+    "remote-sensing"
+  ],
+  "author": "Nexus Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

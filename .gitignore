@@ -1,0 +1,89 @@
+﻿# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Builds
+dist/
+build/
+.next/
+out/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ML Checkpoints and Weights
+ml-service/checkpoints/*
+!ml-service/checkpoints/.gitkeep
+*.pt
+*.pth
+*.onnx
+*.ckpt
+*.h5
+
+# Large Satellite & Spatial Datasets
+data/raw/sentinel2/*
+!data/raw/sentinel2/.gitkeep
+data/raw/high_res/*
+!data/raw/high_res/.gitkeep
+data/processed/train/lr/*
+!data/processed/train/lr/.gitkeep
+data/processed/train/hr/*
+!data/processed/train/hr/.gitkeep
+data/processed/val/lr/*
+!data/processed/val/lr/.gitkeep
+data/processed/val/hr/*
+!data/processed/val/hr/.gitkeep
+data/processed/test/lr/*
+!data/processed/test/lr/.gitkeep
+data/processed/test/hr/*
+!data/processed/test/hr/.gitkeep
+data/outputs/*
+!data/outputs/.gitkeep
+*.tif
+*.tiff
+*.jp2
+*.SAFE
+
+# Environment and Secrets
+.env
+.env.local
+.env.*.local
+*.pem
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
